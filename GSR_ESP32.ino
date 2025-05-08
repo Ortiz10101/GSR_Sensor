@@ -1,6 +1,7 @@
 const int GSR=15;
 int sensorValue=0;
 int gsr_average=0;
+int humanResistance=0;
 
 void setup(){
   Serial.begin(9600);
@@ -16,6 +17,9 @@ void loop(){
       }
    gsr_average = sum/10;
    Serial.println(gsr_average);
-   
+   //humanResistance = ((1024+2*gsr_average)*10000)/(gsr_average);
+   //Serial.print("Medicion de la piel: ");
+   //Serial.println(humanResistance);
+   delay(500);
 }
 
