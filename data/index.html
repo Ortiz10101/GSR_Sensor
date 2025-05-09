@@ -1,0 +1,150 @@
+<!DOCTYPE HTML>
+<html>
+<!-- Codigo HTML para servidor web de ESP32 con el sensor GSR grove
+ v2.0, se graficara la respuesta del sensor y se obtendra una tabla
+ donde se muestre bajo que parametros se encuentra la persona -->
+
+<head>
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <script src="https://code.highcharts.com/highcharts.js"></script>
+    <style>
+        body {
+            min-width: 310px;
+            max-width: 800px;
+            height: 400px;
+            margin: 0 auto;
+        }
+
+        h2 {
+            font-family: Arial;
+            font-size: 2.5rem;
+            text-align: center;
+        }
+
+        .data-table {
+            width: 100%;
+            border-collapse: collapse;
+            margin: 20px 0;
+        }
+
+        .data-table th,
+        .data-table td {
+            border: 1px solid #ddd;
+            padding: 8px;
+            text-align: center;
+        }
+
+        .data-table th {
+            background-color: #f2f2f2;
+        }
+
+        .container {
+            margin-bottom: 20px;
+        }
+
+        .tables-container {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 20px;
+            justify-content: space-between;
+        }
+
+        .table-wrapper {
+            flex: 1;
+            min-width: 300px;
+        }
+
+        .emotion-table {
+            background-color: #f9f9f9;
+        }
+
+        .emotion-table tr:nth-child(even) {
+            background-color: #f2f2f2;
+        }
+    </style>
+</head>
+
+<body>
+    <h2>ESP GSR Sensor</h2>
+    <div id="chart-GSR" class="container"></div>
+    <!-- Tabla de estado emocional -->
+    <div class="table-wrapper">
+        <h3>Estado Emocional (GSR)</h3>
+        <table class="data-table emotion-table">
+            <thead>
+                <tr>
+                    <th>Estado emocional</th>
+                    <th>Valor GSR (Grove, aproximado)</th>
+                </tr>
+            </thead>
+            <tbody>
+                <tr>
+                    <td>Relajación</td>
+                    <td>60 - 100</td>
+                </tr>
+                <tr>
+                    <td>Estado neutro / concentración</td>
+                    <td>100 - 300</td>
+                </tr>
+                <tr>
+                    <td>Estrés leve</td>
+                    <td>300 - 500</td>
+                </tr>
+                <tr>
+                    <td>Estrés alto / miedo</td>
+                    <td>500 - 700</td>
+                </tr>
+                <tr>
+                    <td>Dolor / activación máxima</td>
+                    <td>700 - 1023</td>
+                </tr>
+            </tbody>
+        </table>
+    </div>
+    </div>
+</body>
+<script>
+    var chartGSR = new Highcharts.Chart({
+        chart: { renderTo: 'chart-GSR' },
+        title: { text: 'Medicion de emociones en personas' },
+        series: [{
+            showInLegend: false,
+            data: []
+        }],
+        plotOptions: {
+            line: {
+                animation: false,
+                dataLabels: { enabled: true }
+            },
+            series: { color: '#059e8a' }
+        },
+        xAxis: {
+            type: 'datetime',
+            dateTimeLabelFormats: { second: '%H:%M:%S' }
+        },
+        yAxis: {
+            title: { text: 'Resistencia de la piel (Ohms)' }
+            //title: { text: 'Temperature (Fahrenheit)' }
+        },
+        credits: { enabled: false }
+    });
+    setInterval(function () {
+        var xhttp = new XMLHttpRequest();
+        xhttp.onreadystatechange = function () {
+            if (this.readyState == 4 && this.status == 200) {
+                var x = (new Date()).getTime(),
+                    y = parseFloat(this.responseText);
+                //console.log(this.responseText);
+                if (chartGSR.series[0].data.length > 40) {
+                    chartGSR.series[0].addPoint([x, y], true, true, true);
+                } else {
+                    chartGSR.series[0].addPoint([x, y], true, false, true);
+                }
+            }
+        };
+        xhttp.open("GET", "/humanResistance", true);
+        xhttp.send();
+    }, 300);
+</script>
+
+</html>
