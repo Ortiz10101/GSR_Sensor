@@ -1,8 +1,7 @@
 <!DOCTYPE HTML>
 <html>
 <!-- Codigo HTML para servidor web de ESP32 con el sensor GSR grove
- v2.0, se graficara la respuesta del sensor y se obtendra una tabla
- donde se muestre bajo que parametros se encuentra la persona -->
+ v3.0, incluye graficos para visualizar el comportamiento del PID -->
 
 <head>
     <meta name="viewport" content="width=device-width, initial-scale=1">
@@ -11,13 +10,19 @@
         body {
             min-width: 310px;
             max-width: 800px;
-            height: 400px;
             margin: 0 auto;
+            font-family: Arial, sans-serif;
         }
 
         h2 {
-            font-family: Arial;
             font-size: 2.5rem;
+            text-align: center;
+            margin-bottom: 10px;
+        }
+
+        h3 {
+            margin-top: 20px;
+            color: #333;
             text-align: center;
         }
 
@@ -38,8 +43,12 @@
             background-color: #f2f2f2;
         }
 
-        .container {
-            margin-bottom: 20px;
+        .chart-container {
+            height: 300px;
+            margin-bottom: 30px;
+            border: 1px solid #eee;
+            border-radius: 5px;
+            box-shadow: 0 2px 5px rgba(0,0,0,0.05);
         }
 
         .tables-container {
@@ -61,12 +70,73 @@
         .emotion-table tr:nth-child(even) {
             background-color: #f2f2f2;
         }
+
+        .control-panel {
+            background-color: #f5f5f5;
+            padding: 15px;
+            border-radius: 8px;
+            margin-bottom: 20px;
+        }
+
+        .pid-info {
+            display: flex;
+            justify-content: space-around;
+            margin: 15px 0;
+            flex-wrap: wrap;
+        }
+
+        .pid-info-item {
+            text-align: center;
+            padding: 10px;
+            min-width: 120px;
+        }
+
+        .pid-info-value {
+            font-size: 1.2em;
+            font-weight: bold;
+            color: #2c3e50;
+        }
+
+        .pid-info-label {
+            font-size: 0.9em;
+            color: #7f8c8d;
+        }
     </style>
 </head>
 
 <body>
-    <h2>ESP GSR Sensor</h2>
-    <div id="chart-GSR" class="container"></div>
+    <h2>ESP GSR Sensor con Control PID</h2>
+
+    <!-- Gráfico principal: Sensor vs Setpoint -->
+    <h3>Respuesta del Sistema</h3>
+    <div id="chart-system" class="chart-container"></div>
+
+    <!-- Gráfico del Control PID -->
+    <h3>Control PID</h3>
+    <div id="chart-pid" class="chart-container"></div>
+
+    <!-- Información del PID en tiempo real -->
+    <div class="control-panel">
+        <div class="pid-info">
+            <div class="pid-info-item">
+                <div class="pid-info-label">Setpoint</div>
+                <div class="pid-info-value" id="current-setpoint">--</div>
+            </div>
+            <div class="pid-info-item">
+                <div class="pid-info-label">Valor Actual</div>
+                <div class="pid-info-value" id="current-value">--</div>
+            </div>
+            <div class="pid-info-item">
+                <div class="pid-info-label">Salida PWM</div>
+                <div class="pid-info-value" id="current-pwm">--</div>
+            </div>
+            <div class="pid-info-item">
+                <div class="pid-info-label">Error</div>
+                <div class="pid-info-value" id="current-error">--</div>
+            </div>
+        </div>
+    </div>
+
     <!-- Tabla de estado emocional -->
     <div class="table-wrapper">
         <h3>Estado Emocional (GSR)</h3>
@@ -101,49 +171,135 @@
             </tbody>
         </table>
     </div>
-    </div>
-</body>
-<script>
-    var chartGSR = new Highcharts.Chart({
-        chart: { renderTo: 'chart-GSR' },
-        title: { text: 'Medicion de emociones en personas' },
-        series: [{
-            showInLegend: false,
-            data: []
-        }],
-        plotOptions: {
-            line: {
-                animation: false,
-                dataLabels: { enabled: true }
-            },
-            series: { color: '#059e8a' }
-        },
-        xAxis: {
-            type: 'datetime',
-            dateTimeLabelFormats: { second: '%H:%M:%S' }
-        },
-        yAxis: {
-            title: { text: 'Resistencia de la piel (Ohms)' }
-        },
-        credits: { enabled: false }
-    });
-    setInterval(function () {
-        var xhttp = new XMLHttpRequest();
-        xhttp.onreadystatechange = function () {
-            if (this.readyState == 4 && this.status == 200) {
-                var x = (new Date()).getTime(),
-                    y = parseFloat(this.responseText);
-                //console.log(this.responseText);
-                if (chartGSR.series[0].data.length > 40) {
-                    chartGSR.series[0].addPoint([x, y], true, true, true);
-                } else {
-                    chartGSR.series[0].addPoint([x, y], true, false, true);
-                }
-            }
-        };
-        xhttp.open("GET", "/humanResistance", true);
-        xhttp.send();
-    }, 2000);
-</script>
 
+    <script>
+        // Configuración del gráfico del sistema
+        var chartSystem = new Highcharts.Chart({
+            chart: { renderTo: 'chart-system' },
+            title: { text: '' },
+            series: [{
+                name: 'Valor GSR',
+                data: [],
+                color: '#059e8a',
+                lineWidth: 2
+            }, {
+                name: 'Setpoint',
+                data: [],
+                color: '#e74c3c',
+                dashStyle: 'shortdot',
+                lineWidth: 2
+            }],
+            plotOptions: {
+                line: { animation: false }
+            },
+            xAxis: {
+                type: 'datetime',
+                dateTimeLabelFormats: { second: '%H:%M:%S' }
+            },
+            yAxis: {
+                title: { text: 'Valor' },
+                min: 0,
+                max: 1023
+            },
+            legend: {
+                align: 'right',
+                verticalAlign: 'top'
+            },
+            credits: { enabled: false }
+        });
+
+        // Configuración del gráfico del PID
+        var chartPID = new Highcharts.Chart({
+            chart: { renderTo: 'chart-pid' },
+            title: { text: '' },
+            series: [{
+                name: 'Salida PWM',
+                data: [],
+                color: '#3498db',
+                lineWidth: 2
+            }, {
+                name: 'Componente P',
+                data: [],
+                color: '#e67e22',
+                lineWidth: 1
+            }, {
+                name: 'Componente I',
+                data: [],
+                color: '#9b59b6',
+                lineWidth: 1
+            }, {
+                name: 'Componente D',
+                data: [],
+                color: '#2ecc71',
+                lineWidth: 1
+            }],
+            plotOptions: {
+                line: { animation: false }
+            },
+            xAxis: {
+                type: 'datetime',
+                dateTimeLabelFormats: { second: '%H:%M:%S' }
+            },
+            yAxis: {
+                title: { text: 'Valor' },
+                min: 0,
+                max: 255
+            },
+            legend: {
+                align: 'right',
+                verticalAlign: 'top'
+            },
+            credits: { enabled: false }
+        });
+
+        // Variables para almacenar datos históricos
+        var lastUpdateTime = 0;
+        var pidDataCache = {};
+
+        // Función para actualizar los datos del sistema
+        function updateSystemData() {
+            var xhttp = new XMLHttpRequest();
+            xhttp.onreadystatechange = function() {
+                if (this.readyState == 4 && this.status == 200) {
+                    var data = JSON.parse(this.responseText);
+                    var now = new Date().getTime();
+                    
+                    // Actualizar gráfico del sistema
+                    chartSystem.series[0].addPoint([now, data.value], true, chartSystem.series[0].data.length > 50);
+                    chartSystem.series[1].addPoint([now, data.setpoint], true, chartSystem.series[1].data.length > 50);
+                    
+                    // Actualizar información en tiempo real
+                    document.getElementById('current-value').textContent = data.value.toFixed(1);
+                    document.getElementById('current-setpoint').textContent = data.setpoint.toFixed(1);
+                    document.getElementById('current-error').textContent = (data.setpoint - data.value).toFixed(1);
+                    
+                    // Almacenar datos para el gráfico PID
+                    pidDataCache = data;
+                    lastUpdateTime = now;
+                }
+            };
+            xhttp.open("GET", "/systemData", true);
+            xhttp.send();
+        }
+
+        // Función para actualizar los datos del PID
+        function updatePIDData() {
+            var now = new Date().getTime();
+            
+            // Solo actualizar si tenemos datos nuevos
+            if (pidDataCache.pwm !== undefined) {
+                chartPID.series[0].addPoint([now, pidDataCache.pwm], true, chartPID.series[0].data.length > 50);
+                chartPID.series[1].addPoint([now, pidDataCache.pTerm], true, chartPID.series[1].data.length > 50);
+                chartPID.series[2].addPoint([now, pidDataCache.iTerm], true, chartPID.series[2].data.length > 50);
+                chartPID.series[3].addPoint([now, pidDataCache.dTerm], true, chartPID.series[3].data.length > 50);
+                
+                document.getElementById('current-pwm').textContent = pidDataCache.pwm.toFixed(0);
+            }
+        }
+
+        // Actualizar datos periódicamente
+        setInterval(updateSystemData, 1000);
+        setInterval(updatePIDData, 500);
+    </script>
+</body>
 </html>
