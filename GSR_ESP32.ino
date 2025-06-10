@@ -31,10 +31,10 @@ volatile int encoderValue = 0;    // Valor encoder (0-1023)
 volatile float motorVoltage = 0;  // Voltaje de salida PID
 volatile bool wifiConnected = false;
 
-// Parámetros PID
-const float kp = 0.2;
-const float ki = 0.00000;
-const float kd = 2.00;
+// Parámetros PID, estos parametros ajustan la respuesta del sistema
+const float kp = 0.2;// mientras mas alto sea este valor, oscilara mas tu respuesta
+const float ki = 0.00000;//mientras mas alto sea este valor se reduce el error en estado estacionario
+const float kd = 2.00;//mientras mas alto sea este valor, se reduce la banda muerta entre el SP y mi variable
 const float Vmax = 5;
 const float Vmin = -5;
 
@@ -174,18 +174,6 @@ void initializeWebServer() {
     }
     server.send(200, "text/plain", reading);
   });
-  
-  server.on("/pid", []() {
-    String data;
-    if (xSemaphoreTake(xMutex, portMAX_DELAY) == pdTRUE) {
-      data = "{\"gsr\":" + String(gsrValue) + 
-             ",\"encoder\":" + String(encoderValue) + 
-             ",\"voltage\":" + String(motorVoltage, 2) + "}";
-      xSemaphoreGive(xMutex);
-    }
-    server.send(200, "application/json", data);
-  });
-  
   server.begin();
 }
 
